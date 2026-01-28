@@ -24,6 +24,12 @@ class UserCreate(BaseModel):
     email: str
     password: str
 
+# ADICIONE ISSO AQUI EMBAIXO:
+class ClientCreate(BaseModel):
+    name: str
+    email: str
+    phone: str
+
 # --- FUNÇÃO DE CONEXÃO COM O BANCO ---
 def get_db_connection():
     db_path = 'backend/sistema_adm.db'
@@ -33,6 +39,25 @@ def get_db_connection():
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
+
+# --- SEGURANÇA: Função que verifica se o token é válido ---
+# (ADICIONADO AGORA: O "Segurança" da balada)
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Busca o usuário usando o token (que por enquanto é o username)
+    cursor.execute("SELECT username, email, role FROM users WHERE username = ?", (token,))
+    user = cursor.fetchone()
+    conn.close()
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Token inválido ou expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
 
 # --- ROTAS GERAIS ---
 @app.get("/")
@@ -96,3 +121,41 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     
     # 4. Retorna o token de acesso
     return {"access_token": user['username'], "token_type": "bearer"}
+
+# --- ROTA PROTEGIDA (Área VIP) ---
+# (ADICIONADO AGORA: Só entra com Login)
+@app.get("/users/me")
+def read_users_me(current_user: dict = Depends(get_current_user)):
+    return {
+        "msg": "Você entrou na área VIP!",
+        "usuario": current_user['username'],
+        "cargo": current_user['role'],
+        "email": current_user['email']
+    }
+# --- ROTAS DE CLIENTES (CRUD) ---
+
+# 1. Adicionar Cliente (Só logado)
+@app.post("/clients", status_code=201)
+def add_client(client: ClientCreate, current_user: dict = Depends(get_current_user)):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO clients (name, email, phone) VALUES (?, ?, ?)",
+            (client.name, client.email, client.phone)
+        )
+        conn.commit()
+        conn.close()
+        return {"msg": "Cliente cadastrado com sucesso!"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 2. Listar Clientes (Só logado)
+@app.get("/clients")
+def list_clients(current_user: dict = Depends(get_current_user)):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM clients")
+    clients = cursor.fetchall()
+    conn.close()
+    return clients
