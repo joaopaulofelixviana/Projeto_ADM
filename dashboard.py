@@ -5,8 +5,13 @@ import pandas as pd
 # Configuração da Página
 st.set_page_config(page_title="Sistema Administrativo", page_icon="🏢", layout="wide")
 
-# Endereço da sua API (O Backend que está rodando na tela preta)
-API_URL = "http://127.0.0.1:8000"
+# dashboard.py
+
+# COMENTE A LINHA ANTIGA
+# API_URL = "http://127.0.0.1:8000"
+
+# COLOQUE A NOVA (Copie exatamente o link da sua imagem)
+API_URL = "https://projeto-adm.onrender.com"
 
 # --- FUNÇÕES DE CONEXÃO ---
 def login(username, password):
