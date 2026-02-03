@@ -1,3 +1,6 @@
+# =========================
+# IMPORTAÇÕES
+# =========================
 import sqlite3
 import os
 from fastapi import FastAPI, HTTPException, Depends
@@ -5,49 +8,80 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from passlib.context import CryptContext
 
+
+# =========================
+# INICIALIZAÇÃO DA API
+# =========================
+# O FastAPI já gera automaticamente a documentação (Swagger),
+# facilitando testes, manutenção e entendimento da API.
 app = FastAPI(
     title="Sistema Administrativo API",
-    description="API conectada ao Banco de Dados Real com Login Seguro",
+    description="API conectada a banco de dados real com autenticação segura",
     version="1.0.0"
 )
 
-# --- CONFIGURAÇÕES DE SEGURANÇA ---
-# 1. Criptografia de senha
+
+# =========================
+# CONFIGURAÇÕES DE SEGURANÇA
+# =========================
+
+# Criptografia de senha usando bcrypt (padrão de mercado)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# 2. Onde o sistema vai procurar o token (na rota /token)
+# Define onde o token será enviado (rota de login)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
-# --- MODELOS DE DADOS ---
+
+# =========================
+# MODELOS DE DADOS (Pydantic)
+# =========================
+# Garantem validação e segurança dos dados recebidos pela API
 class UserCreate(BaseModel):
     username: str
     email: str
     password: str
 
-# ADICIONE ISSO AQUI EMBAIXO:
+
 class ClientCreate(BaseModel):
     name: str
     email: str
     phone: str
 
-# --- FUNÇÃO DE CONEXÃO COM O BANCO ---
+
+# =========================
+# CONEXÃO COM O BANCO DE DADOS
+# =========================
 def get_db_connection():
+    """
+    Cria e retorna uma conexão com o banco SQLite.
+    O código verifica o caminho do banco para garantir compatibilidade
+    tanto em ambiente local quanto em produção.
+    """
     db_path = 'backend/sistema_adm.db'
     if not os.path.exists(db_path):
         db_path = 'sistema_adm.db'
-    
+
     conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    conn.row_factory = sqlite3.Row  # Permite acessar colunas pelo nome
     return conn
 
-# --- SEGURANÇA: Função que verifica se o token é válido ---
-# (ADICIONADO AGORA: O "Segurança" da balada)
+
+# =========================
+# FUNÇÃO DE SEGURANÇA (VALIDAÇÃO DO TOKEN)
+# =========================
 async def get_current_user(token: str = Depends(oauth2_scheme)):
+    """
+    Função responsável por validar o token de acesso.
+    Caso o token seja inválido, o acesso à rota é bloqueado.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Busca o usuário usando o token (que por enquanto é o username)
-    cursor.execute("SELECT username, email, role FROM users WHERE username = ?", (token,))
+
+    # O token representa o usuário autenticado
+    cursor.execute(
+        "SELECT username, email, role FROM users WHERE username = ?",
+        (token,)
+    )
     user = cursor.fetchone()
     conn.close()
 
@@ -57,15 +91,26 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
             detail="Token inválido ou expirado",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
     return user
 
-# --- ROTAS GERAIS ---
+
+# =========================
+# ROTAS GERAIS
+# =========================
 @app.get("/")
 def read_root():
+    """
+    Rota raiz para verificação rápida do status da API.
+    """
     return {"status": "online", "banco": "Conectado 🟢"}
+
 
 @app.get("/users")
 def get_users():
+    """
+    Lista todos os usuários cadastrados.
+    """
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -76,69 +121,110 @@ def get_users():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro no banco: {str(e)}")
 
-# --- ROTA DE CADASTRO (Criptografada) ---
+
+# =========================
+# ROTA DE CADASTRO DE USUÁRIO
+# =========================
 @app.post("/register", status_code=201)
 def create_user(user: UserCreate):
+    """
+    Cria um novo usuário com senha criptografada.
+    Nenhuma senha é armazenada em texto puro.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
+    # Criptografa a senha antes de salvar no banco
     hashed_password = pwd_context.hash(user.password)
-    
+
     try:
         cursor.execute(
-            "INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
+            """
+            INSERT INTO users (username, email, password_hash, role)
+            VALUES (?, ?, ?, ?)
+            """,
             (user.username, user.email, hashed_password, 'user')
         )
         conn.commit()
         conn.close()
+
         return {"mensagem": f"Usuário {user.username} criado com sucesso!"}
-        
+
     except sqlite3.IntegrityError:
-        raise HTTPException(status_code=400, detail="Usuário ou Email já cadastrado.")
+        raise HTTPException(
+            status_code=400,
+            detail="Usuário ou email já cadastrado."
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- ROTA DE LOGIN (Gera o Token) ---
+
+# =========================
+# ROTA DE LOGIN (GERAÇÃO DE TOKEN)
+# =========================
 @app.post("/token")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    """
+    Realiza autenticação do usuário.
+    Se as credenciais forem válidas, retorna um token de acesso.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # 1. Busca o usuário pelo nome
-    cursor.execute("SELECT * FROM users WHERE username = ?", (form_data.username,))
+
+    # Busca o usuário pelo username
+    cursor.execute(
+        "SELECT * FROM users WHERE username = ?",
+        (form_data.username,)
+    )
     user = cursor.fetchone()
     conn.close()
-    
-    # 2. Se não achar usuário, erro
+
     if not user:
         raise HTTPException(status_code=400, detail="Usuário ou senha incorretos")
-    
-    # 3. Verifica se a senha bate com o Hash do banco
-    senha_correta = pwd_context.verify(form_data.password, user['password_hash'])
-    
-    if not senha_correta:
-        raise HTTPException(status_code=400, detail="Usuário ou senha incorretos")
-    
-    # 4. Retorna o token de acesso
-    return {"access_token": user['username'], "token_type": "bearer"}
 
-# --- ROTA PROTEGIDA (Área VIP) ---
-# (ADICIONADO AGORA: Só entra com Login)
+    # Verifica se a senha informada corresponde ao hash armazenado
+    if not pwd_context.verify(form_data.password, user['password_hash']):
+        raise HTTPException(status_code=400, detail="Usuário ou senha incorretos")
+
+    # Retorna o token de acesso
+    return {
+        "access_token": user['username'],
+        "token_type": "bearer"
+    }
+
+
+# =========================
+# ROTA PROTEGIDA (USUÁRIO LOGADO)
+# =========================
 @app.get("/users/me")
 def read_users_me(current_user: dict = Depends(get_current_user)):
+    """
+    Retorna informações do usuário autenticado.
+    Só pode ser acessada com token válido.
+    """
     return {
-        "msg": "Você entrou na área VIP!",
+        "msg": "Você entrou na área protegida!",
         "usuario": current_user['username'],
         "cargo": current_user['role'],
         "email": current_user['email']
     }
-# --- ROTAS DE CLIENTES (CRUD) ---
 
-# 1. Adicionar Cliente (Só logado)
+
+# =========================
+# ROTAS DE CLIENTES (CRUD)
+# =========================
 @app.post("/clients", status_code=201)
-def add_client(client: ClientCreate, current_user: dict = Depends(get_current_user)):
+def add_client(
+    client: ClientCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Cadastra um novo cliente.
+    Apenas usuários autenticados podem acessar.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
+
     try:
         cursor.execute(
             "INSERT INTO clients (name, email, phone) VALUES (?, ?, ?)",
@@ -147,12 +233,17 @@ def add_client(client: ClientCreate, current_user: dict = Depends(get_current_us
         conn.commit()
         conn.close()
         return {"msg": "Cliente cadastrado com sucesso!"}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# 2. Listar Clientes (Só logado)
+
 @app.get("/clients")
 def list_clients(current_user: dict = Depends(get_current_user)):
+    """
+    Lista todos os clientes cadastrados.
+    Acesso restrito a usuários autenticados.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM clients")
