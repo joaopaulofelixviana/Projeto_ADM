@@ -75,3 +75,17 @@ Foram implementados **testes automatizados** utilizando **Pytest**, garantindo m
 
 ```bash
 python -m pytest --cov=.
+
+# Criar ambiente virtual
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# Instalar dependências
+pip install -r requirements.txt
+
+# Criar banco de dados
+python create_db.py
+
+# Iniciar a API
+uvicorn main:app --reload
+
