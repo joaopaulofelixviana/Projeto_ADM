@@ -9,9 +9,10 @@ def create_database():
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
-    print("🔄 Verificando tabelas...")
+    print("Verificando tabelas...")
 
     # Tabela de Usuários
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,7 +23,10 @@ def create_database():
     )
     """)
 
+    # --- O banco é criado automaticamente, o que permite rodar o projeto do zero sem configuração manual ---
+
     # Tabela de Clientes (Essa é a nova!)
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS clients (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,16 +39,17 @@ def create_database():
     """)
 
     # Criar admin se não existir
-    cursor.execute("SELECT * FROM users WHERE username = 'admin'")
+
+    cursor.execute("SELECT * FROM users WHERE username = 'testes'")
     if not cursor.fetchone():
-        senha_hash = pwd_context.hash("admin123")
+        senha_hash = pwd_context.hash("senha_super_secreta")
         cursor.execute("INSERT INTO users (username, email, password_hash, role) VALUES (?, ?, ?, ?)",
-                       ('admin', 'admin@empresa.com', senha_hash, 'admin'))
-        print("✅ Usuário admin criado.")
+                       ('testes', 'testes@empresa.com', senha_hash, 'admin'))
+        print("Usuário testes criado.")
 
     conn.commit()
     conn.close()
-    print("✅ Banco de dados pronto!")
+    print("Banco de dados pronto!")
 
 if __name__ == "__main__":
     create_database()

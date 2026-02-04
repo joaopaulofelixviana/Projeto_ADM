@@ -2,16 +2,37 @@ import sqlite3
 import os
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware  # <--- IMPORTAÇÃO ADICIONADA
 from pydantic import BaseModel
 from passlib.context import CryptContext
 
+# --- Aqui inicializo a API já documentada automaticamente pelo FastAPI ---
 app = FastAPI(
     title="Sistema Administrativo API",
     description="API conectada ao Banco de Dados Real com Login Seguro",
     version="1.0.0"
 )
 
+# --- CORREÇÃO DO ERRO DE CONEXÃO (CORS) ---
+# Isso permite que o Frontend (porta 3000 ou 5500) fale com o Backend (porta 8000)
+origins = [
+    "http://localhost:3000",
+    "http://localhost:5500",
+    "http://127.0.0.1:5500",
+    "https://sistema-adm-frontend.onrender.com/"  # Libera todas as origens (ideal para desenvolvimento)
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+# ------------------------------------------
+
 # --- CONFIGURAÇÕES DE SEGURANÇA ---
+
 # 1. Criptografia de senha
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -24,7 +45,6 @@ class UserCreate(BaseModel):
     email: str
     password: str
 
-# ADICIONE ISSO AQUI EMBAIXO:
 class ClientCreate(BaseModel):
     name: str
     email: str
@@ -32,6 +52,7 @@ class ClientCreate(BaseModel):
 
 # --- FUNÇÃO DE CONEXÃO COM O BANCO ---
 def get_db_connection():
+    # Tenta achar o banco na pasta backend ou na raiz
     db_path = 'backend/sistema_adm.db'
     if not os.path.exists(db_path):
         db_path = 'sistema_adm.db'
@@ -41,7 +62,6 @@ def get_db_connection():
     return conn
 
 # --- SEGURANÇA: Função que verifica se o token é válido ---
-# (ADICIONADO AGORA: O "Segurança" da balada)
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -123,7 +143,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
     return {"access_token": user['username'], "token_type": "bearer"}
 
 # --- ROTA PROTEGIDA (Área VIP) ---
-# (ADICIONADO AGORA: Só entra com Login)
 @app.get("/users/me")
 def read_users_me(current_user: dict = Depends(get_current_user)):
     return {
@@ -132,6 +151,7 @@ def read_users_me(current_user: dict = Depends(get_current_user)):
         "cargo": current_user['role'],
         "email": current_user['email']
     }
+
 # --- ROTAS DE CLIENTES (CRUD) ---
 
 # 1. Adicionar Cliente (Só logado)
