@@ -2,76 +2,60 @@
 
 ## Sobre o Projeto
 
-O **Sistema Administrativo Integrado (SAI)** é uma aplicação desenvolvida em **Python**, com foco na automação de processos administrativos, visando a redução de trabalho manual, aumento de produtividade e mitigação de erros operacionais.
+O **Sistema Administrativo Integrado (SAI)** é uma aplicação **Full-Stack em Python**, desenvolvida para centralizar e automatizar processos corporativos. O foco é eliminar o trabalho manual repetitivo, reduzir erros operacionais e fornecer inteligência de dados através de dashboards interativos.
 
-O projeto segue uma **arquitetura modular**, separando responsabilidades entre interface de usuário, regras de negócio e persistência de dados, facilitando a manutenção e evolução do sistema.
+O projeto foi modernizado para uma **arquitetura monolítica simplificada**, onde interface, lógica de negócio e banco de dados operam de forma integrada e performática, facilitando o deploy e a manutenção.
 
 ---
 
 ## Funcionalidades
 
-- **Autenticação de Usuários**
-  - Sistema de login com **armazenamento seguro de senhas utilizando hash**.
-  - Controle de acesso por sessão.
+### Segurança e Acesso
 
-- **Relatórios Gerenciais**
-  - Dashboard interativo com indicadores (KPIs).
-  - Gráficos dinâmicos para análise de dados.
+- **Autenticação Segura:** Sistema de login próprio com hash de senha (SHA-256).
+- **Controle de Sessão:** Gerenciamento de estado para manter o usuário logado durante o uso.
+- **Admin Padrão:** Criação automática de usuário administrador na primeira execução.
 
-- **Consolidação de Dados**
-  - Importação e unificação automática de múltiplas planilhas Excel e CSV.
+### Inteligência de Negócios (BI)
 
-- **Cobrança Inteligente**
-  - Envio de e-mails personalizados.
-  - Seleção de tom de voz conforme perfil do cliente.
+- **Dashboard Interativo:** Visualização de dados em tempo real.
+- **Gráficos Dinâmicos:** Implementados com Plotly para análise visual de métricas.
+- **Tabelas de Dados:** Visualização e filtragem de clientes e processos.
 
-- **Organização de Arquivos**
-  - Renomeação automática de PDFs com uso de RegEx e OCR.
+### Automação e Arquivos
 
----
-
-## Arquitetura do Projeto
-
-A aplicação foi estruturada em camadas, seguindo boas práticas de desenvolvimento:
-
-- **Interface (Frontend):** Desenvolvida com Streamlit, responsável pela interação com o usuário.
-- **Camada de Negócio:** Processamento das regras e validações do sistema.
-- **Persistência de Dados:** Banco de dados relacional para armazenamento seguro das informações.
-
-Apesar de utilizar Python no frontend, o Streamlit gera **HTML e CSS dinamicamente**, sendo executado no navegador do usuário.
+- **Consolidação de Dados:** Unificação de planilhas Excel e CSV.
+- **Gestão de Documentos:** Leitura e processamento de PDFs (com `pypdf`).
+- **Cobrança Inteligente:** Automação de lógica para envio de cobranças (Simulação).
+- **CRUD Completo:** Cadastro, leitura e gestão de Clientes e Usuários.
 
 ---
 
-## Tecnologias Utilizadas
+## 🛠 Tecnologias Utilizadas
+
+O projeto utiliza uma stack moderna e direta em Python:
 
 - **Linguagem:** Python 3.12+
-- **Frontend:** Streamlit
-- **Visualização de Dados:** Plotly, Pandas
-- **Banco de Dados:** SQLite (com planejamento de migração para PostgreSQL)
-- **Manipulação de Arquivos:** PyPDF, OpenPyXL, XlsxWriter
-- **Testes:** Pytest, Pytest-Cov
-- **Segurança:** Werkzeug (hash de senha)
+- **Core Framework:** Streamlit (Interface e Controle de Estado)
+- **Manipulação de Dados:** Pandas
+- **Banco de Dados:** SQLite (Arquivo local `sistema_local.db`)
+- **Visualização:** Plotly
+- **Processamento de Arquivos:** PyPDF, OpenPyXL
+- **Criptografia:** Hashlib (Biblioteca padrão)
 
 ---
 
-## Segurança
+## Instalação e Execução Local
 
-- As senhas dos usuários são armazenadas utilizando **hash criptográfico**, garantindo que nenhuma senha seja salva em texto puro.
-- O acesso às funcionalidades do sistema é protegido por controle de sessão.
+Siga os passos abaixo para rodar o projeto no seu computador:
 
----
+1. **Clone o repositório**
 
-## Operações CRUD
+   ```bash
+   git clone [https://github.com/SEU_USUARIO/SEU_PROJETO.git](https://github.com/SEU_USUARIO/SEU_PROJETO.git)
+   cd SEU_PROJETO
 
-O sistema implementa operações de **CRUD (Create, Read, Update, Delete)** para gerenciamento dos dados, seguindo princípios REST internamente na aplicação.
-
----
-
-## Testes Automatizados
-
-Foram implementados **testes automatizados** utilizando **Pytest**, garantindo maior confiabilidade do sistema.
-
-### Executar os testes
+   ### Executar os testes
 
 ```bash
 python -m pytest --cov=.
@@ -86,6 +70,5 @@ pip install -r requirements.txt
 # Criar banco de dados
 python create_db.py
 
-# Iniciar a API
-uvicorn main:app --reload
-
+# Execute a aplicação 
+python -m streamlit run dashboard.py
