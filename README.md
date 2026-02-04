@@ -55,7 +55,7 @@ Siga os passos abaixo para rodar o projeto no seu computador:
    git clone [https://github.com/SEU_USUARIO/SEU_PROJETO.git](https://github.com/SEU_USUARIO/SEU_PROJETO.git)
    cd SEU_PROJETO
 
-   ### Executar os testes
+### Executar os testes
 
 ```bash
 python -m pytest --cov=.
