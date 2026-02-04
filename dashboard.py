@@ -1,112 +1,132 @@
 import streamlit as st
-import requests
+import sqlite3
 import pandas as pd
+import hashlib
 
-# Configuração da Página
-st.set_page_config(page_title="Sistema Administrativo", page_icon="🏢", layout="wide")
+# --- CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="Sistema ADM", layout="wide")
 
-# dashboard.py
+# --- BANCO DE DADOS LOCAL (Tudo acontece aqui) ---
+def get_connection():
+    # Cria o banco 'sistema_local.db' direto na pasta do projeto
+    conn = sqlite3.connect("sistema_local.db")
+    return conn
 
-# COMENTE A LINHA ANTIGA
-# API_URL = "http://127.0.0.1:8000"
+def init_db():
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Tabela de Usuários
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            password TEXT,
+            role TEXT
+        )
+    ''')
+    # Tabela de Clientes
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS clients (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            email TEXT,
+            phone TEXT
+        )
+    ''')
+    
+    # Cria usuário ADMIN padrão se não existir (admin / 123)
+    cursor.execute("SELECT * FROM users WHERE username = 'admin'")
+    if not cursor.fetchone():
+        # Senha "123" criptografada (hash simples para facilitar)
+        senha_hash = hashlib.sha256("123".encode()).hexdigest()
+        cursor.execute("INSERT INTO users VALUES (?, ?, ?)", ('admin', senha_hash, 'admin'))
+    
+    conn.commit()
+    conn.close()
 
-# COLOQUE A NOVA (Copie exatamente o link da sua imagem)
-API_URL = "https://projeto-adm.onrender.com"
+# Inicializa o banco assim que abre
+init_db()
 
-# --- FUNÇÕES DE CONEXÃO ---
-def login(username, password):
-    try:
-        response = requests.post(f"{API_URL}/token", data={"username": username, "password": password})
-        if response.status_code == 200:
-            return response.json()
-        else:
-            return None
-    except:
-        st.error("Erro: Não foi possível conectar ao servidor. Verifique se o backend está rodando!")
-        return None
+# --- FUNÇÕES DE LÓGICA ---
+def check_login(username, password):
+    conn = get_connection()
+    cursor = conn.cursor()
+    senha_hash = hashlib.sha256(password.encode()).hexdigest()
+    cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, senha_hash))
+    user = cursor.fetchone()
+    conn.close()
+    return user
 
-def get_clients(token):
-    headers = {"Authorization": f"Bearer {token}"}
-    response = requests.get(f"{API_URL}/clients", headers=headers)
-    if response.status_code == 200:
-        return response.json()
-    return []
+def add_client(name, email, phone):
+    conn = get_connection()
+    conn.execute("INSERT INTO clients (name, email, phone) VALUES (?, ?, ?)", (name, email, phone))
+    conn.commit()
+    conn.close()
 
-def add_client(token, name, email, phone):
-    headers = {"Authorization": f"Bearer {token}"}
-    data = {"name": name, "email": email, "phone": phone}
-    response = requests.post(f"{API_URL}/clients", json=data, headers=headers)
-    return response
+def get_clients():
+    conn = get_connection()
+    df = pd.read_sql("SELECT * FROM clients", conn)
+    conn.close()
+    return df
 
-# --- LÓGICA DA TELA ---
+# --- CONTROLE DE SESSÃO (LOGIN) ---
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
 
-# Verifica se já existe um token na sessão (memória do navegador)
-if 'token' not in st.session_state:
-    st.session_state['token'] = None
-
-# TELA DE LOGIN (Se não tiver token, mostra isso)
-if st.session_state['token'] is None:
-    st.title("Acesso ao Sistema")
-    col1, col2 = st.columns([1, 2]) # Ajuste visual
-    with col1:
-        st.markdown("Entre com suas credenciais para acessar o painel administrativo.")
-        user = st.text_input("Usuário")
-        pwd = st.text_input("Senha", type="password")
+# ================================
+# TELA DE LOGIN
+# ================================
+if not st.session_state["logged_in"]:
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.title("🔒 Acesso ao Sistema")
+        username = st.text_input("Usuário")
+        password = st.text_input("Senha", type="password")
         
-        if st.button("Entrar no Sistema", type="primary"):
-            data = login(user, pwd)
-            if data:
-                st.session_state['token'] = data['access_token']
+        if st.button("Entrar", type="primary"):
+            user = check_login(username, password)
+            if user:
+                st.session_state["logged_in"] = True
+                st.session_state["username"] = username
                 st.rerun() # Recarrega a página para entrar
             else:
                 st.error("Usuário ou senha incorretos!")
+                st.info("Dica: admin / 123")
 
-# TELA PRINCIPAL (Se tiver token, mostra o menu)
+# ================================
+# TELA PRINCIPAL (DASHBOARD)
+# ================================
 else:
-    # Menu Lateral
-    st.sidebar.title("Menu Admin")
-    st.sidebar.write(f"Logado como: **Admin**")
-    menu = st.sidebar.radio("Navegação", ["Dashboard Clientes", "Novo Cadastro", "Sair"])
-
-    # 1. VISUALIZAR CLIENTES
-    if menu == "Dashboard Clientes":
-        st.title("Carteira de Clientes")
-        st.write("Lista completa de clientes ativos no sistema.")
-        
-        clients_data = get_clients(st.session_state['token'])
-        
-        if clients_data:
-            # Cria uma tabela bonita com Pandas
-            df = pd.DataFrame(clients_data, columns=["ID", "Nome", "Email", "Telefone", "Status", "Data Criação"])
-            st.dataframe(df, use_container_width=True, hide_index=True)
+    # Barra Lateral
+    with st.sidebar:
+        st.write(f"👤 Olá, **{st.session_state['username']}**")
+        if st.button("Sair"):
+            st.session_state["logged_in"] = False
+            st.rerun()
+    
+    st.title("🚀 Painel Administrativo")
+    
+    tab1, tab2 = st.tabs(["📋 Lista de Clientes", "➕ Novo Cadastro"])
+    
+    with tab1:
+        st.subheader("Clientes Cadastrados")
+        df = get_clients()
+        if not df.empty:
+            st.dataframe(df, use_container_width=True)
         else:
             st.info("Nenhum cliente cadastrado ainda.")
-
-    # 2. CADASTRAR CLIENTE
-    elif menu == "Novo Cadastro":
-        st.title("Novo Cliente")
-        st.write("Preencha os dados abaixo para adicionar um novo registro.")
-        
-        with st.form("new_client_form"):
-            name = st.text_input("Nome Completo")
-            col_a, col_b = st.columns(2)
-            with col_a:
-                email = st.text_input("Email Corporativo")
-            with col_b:
-                phone = st.text_input("Telefone / WhatsApp")
             
-            submit = st.form_submit_button("💾 Salvar Cliente")
-
-            if submit:
-                res = add_client(st.session_state['token'], name, email, phone)
-                if res.status_code == 201:
-                    st.success("Cliente cadastrado com sucesso!")
-                elif res.status_code == 401:
-                    st.error("Sua sessão expirou. Faça login novamente.")
+    with tab2:
+        st.subheader("Cadastrar Novo Cliente")
+        with st.form("form_cliente"):
+            name = st.text_input("Nome Completo")
+            email = st.text_input("E-mail")
+            phone = st.text_input("Telefone")
+            submitted = st.form_submit_button("Salvar Cliente")
+            
+            if submitted:
+                if name and email:
+                    add_client(name, email, phone)
+                    st.success("Cliente salvo com sucesso!")
+                    # Pequeno hack para atualizar a tabela na outra aba
                 else:
-                    st.error(f"Erro ao cadastrar: {res.text}")
-
-    # 3. LOGOUT
-    elif menu == "Sair":
-        st.session_state['token'] = None
-        st.rerun()
+                    st.warning("Preencha pelo menos Nome e E-mail.")
